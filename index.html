@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IP Inspector Pro - Cyber Forensic Edition</title>
+    <title>IP Inspector Pro - WhoIs</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -253,19 +253,21 @@
         }
 
         async function exportPDF() {
+            if (resultsData.length === 0) {
+                showError("AUCUNE_DONNEE_A_EXPORTER");
+                return;
+            }
+
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             const now = new Date().toLocaleString('fr-FR');
 
-            // Correction du dégradé : au lieu de dessiner ligne par ligne (cause du bruit/traits)
-            // On utilise un bloc uni de la couleur cible #2258ce pour un rendu propre
+            // Header massif uni pour éviter le bruit visuel sur mobile
             const headerColor = [34, 88, 206]; // #2258ce
-            
             doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-            doc.rect(0, 0, 210, 45, 'F'); // Bloc d'en-tête massif et propre
+            doc.rect(0, 0, 210, 45, 'F');
             
-            // Ajout d'une ligne de séparation subtile en bas de l'en-tête pour le style
-            doc.setFillColor(26, 58, 138); // Un peu plus foncé
+            doc.setFillColor(26, 58, 138); 
             doc.rect(0, 44, 210, 1, 'F');
 
             doc.setTextColor(255, 255, 255);
@@ -278,7 +280,6 @@
             doc.text(`DATE DU RAPPORT : ${now}`, 105, 30, { align: "center" });
             doc.text(`DOCUMENT CONFIDENTIEL`, 105, 35, { align: "center" });
 
-            // Table de données
             const rows = resultsData.map(d => [
                 d.ip, 
                 d.org || 'N/A', 
@@ -309,7 +310,6 @@
                 }
             });
 
-            // Footer
             const pageCount = doc.internal.getNumberOfPages();
             for(let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
@@ -318,7 +318,14 @@
                 doc.text(`Page ${i} sur ${pageCount} — Rapport - Listing des adresses IP identifiées`, 105, 285, { align: "center" });
             }
 
-            doc.save(`rapport_forensic_ip_${Date.now()}.pdf`);
+            // Methode de sauvegarde optimisée pour mobile
+            try {
+                // Tente le téléchargement direct
+                doc.save(`rapport_forensic_ip_${Date.now()}.pdf`);
+            } catch (err) {
+                // Fallback : ouverture dans une nouvelle fenêtre si le téléchargement échoue
+                window.open(doc.output('bloburl'), '_blank');
+            }
         }
 
         function clearResults() {
