@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Inspector Pro - Cyber Forensic Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+        }
+
+        /* Police d'impact pour les titres et IP */
+        .impact-font {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 1.25rem;
+            box-shadow: 0 0 50px rgba(0,0,0,0.6);
+        }
+
+        .loader {
+            border: 2px solid #334155;
+            border-top: 2px solid #38bdf8;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-container::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .results-container::-webkit-scrollbar-thumb {
+            background-color: #0ea5e9;
+            border-radius: 10px;
+        }
+
+        .cyber-btn {
+            background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%);
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .cyber-btn:hover {
+            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .result-card {
+            transition: transform 0.2s ease;
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+        }
+
+        .result-card:hover {
+            transform: scale(1.01);
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4 sm:p-6">
+
+    <div class="glass-card w-full max-w-2xl p-6 sm:p-10">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-sky-400 impact-font mb-2">
+                IP INSPECTOR PRO
+            </h1>
+            <p class="text-[10px] text-slate-400 tracking-[0.3em] font-semibold uppercase">Analyse Numérique Forensic</p>
+        </div>
+
+        <div class="space-y-5 mb-8">
+            <!-- Entrée Manuelle -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="ipInput" placeholder="Saisir IPv4 ou IPv6..." 
+                    class="flex-1 p-4 bg-slate-900/80 border border-slate-700 rounded-xl focus:outline-none focus:border-sky-500 text-sky-100 text-sm font-medium transition-all">
+                <button onclick="lookupSingleIP()" id="btnSearch"
+                    class="cyber-btn text-white font-bold py-4 px-8 rounded-xl active:scale-95 text-xs uppercase tracking-widest">
+                    Analyser
+                </button>
+            </div>
+
+            <!-- Import de Fichier -->
+            <div class="flex items-center justify-center w-full">
+                <label for="fileImport" class="flex flex-col items-center justify-center w-full h-24 border border-slate-700 border-dashed rounded-xl cursor-pointer bg-slate-900/30 hover:bg-slate-800/50 transition-all text-center px-4 group">
+                    <div class="flex flex-col items-center justify-center">
+                        <p class="text-[11px] text-slate-500 font-bold group-hover:text-sky-400 transition-colors">
+                            <span class="text-sky-500 mr-2">></span> IMPORT EN MASSE <span class="text-slate-600 font-normal ml-1">(CSV / TXT)</span>
+                        </p>
+                    </div>
+                    <input id="fileImport" type="file" class="hidden" accept=".csv,.txt" onchange="handleFileUpload(event)" />
+                </label>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden text-center text-sky-400 font-bold mb-6 text-xs tracking-widest animate-pulse">
+            <span class="loader mr-3"></span> DATA_FETCHING_IN_PROGRESS...
+        </div>
+
+        <div id="resultsWrapper" class="hidden">
+            <div class="flex justify-between items-end mb-4 border-b border-slate-800 pb-2">
+                <h2 class="text-xs font-black text-sky-500 uppercase tracking-widest">Liste des Adresses Identifiées</h2>
+                <div class="flex gap-3">
+                    <button onclick="exportPDF()" class="text-[10px] font-bold text-sky-400 hover:text-white border border-sky-900/50 px-3 py-1.5 rounded-lg hover:bg-sky-900/40 transition-all">
+                        GÉNÉRER PDF
+                    </button>
+                    <button onclick="clearResults()" class="text-[10px] font-bold text-red-500 hover:text-red-400 uppercase tracking-tighter">
+                        Effacer
+                    </button>
+                </div>
+            </div>
+            
+            <div id="resultsList" class="results-container space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-2">
+                <!-- Les cartes de résultats seront injectées ici -->
+            </div>
+        </div>
+
+        <div id="error" class="hidden bg-red-950/30 border-l-4 border-red-500 text-red-400 p-4 mt-4 rounded-r-lg text-xs font-bold uppercase">
+            Erreur Système: <span id="errorMessage"></span>
+        </div>
+
+        <div class="text-[9px] text-slate-600 font-bold text-center mt-8 px-4 leading-relaxed uppercase tracking-[0.2em] opacity-60">
+            HTTPS Protocol | IPv4/IPv6 Standards | Source: ASN_BGP_TABLES<br>Créé par @HBB
+        </div>
+    </div>
+
+    <script>
+        let resultsData = [];
+
+        async function lookupSingleIP() {
+            const ip = document.getElementById('ipInput').value.trim();
+            if (!ip) return;
+            await processIPs([ip]);
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const text = e.target.result;
+                const ipRegex = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b|(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))/g;
+                const foundIPs = [...new Set(text.match(ipRegex))];
+
+                if (foundIPs.length > 0) {
+                    await processIPs(foundIPs);
+                } else {
+                    showError("AUCUNE_IP_VALIDE_DETECTEE");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        async function processIPs(ipList) {
+            const loader = document.getElementById('loading');
+            const resultsWrapper = document.getElementById('resultsWrapper');
+            
+            loader.classList.remove('hidden');
+            resultsWrapper.classList.remove('hidden');
+
+            for (let i = 0; i < ipList.length; i++) {
+                const ip = ipList[i];
+                try {
+                    const data = await fetchIPData(ip);
+                    resultsData.push({ip, ...data});
+                    addResultToUI(ip, data);
+                } catch (e) {
+                    addResultToUI(ip, { error: true });
+                }
+
+                if (ipList.length > 1 && i < ipList.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            loader.classList.add('hidden');
+        }
+
+        async function fetchIPData(ip) {
+            try {
+                const response = await fetch(`https://ipapi.co/${ip}/json/`);
+                const data = await response.json();
+                if (!data.error) return { ...data, source: 'ipapi.co' };
+                throw new Error();
+            } catch {
+                const response2 = await fetch(`https://ipwhois.app/json/${ip}`);
+                const data2 = await response2.json();
+                if (data2.success) {
+                    return {
+                        org: data2.isp,
+                        asn: data2.asn,
+                        country_name: data2.country,
+                        city: data2.city,
+                        region: data2.region,
+                        source: 'ipwhois.app'
+                    };
+                }
+                throw new Error("ECHEC_API");
+            }
+        }
+
+        function addResultToUI(ip, data) {
+            const list = document.getElementById('resultsList');
+            const card = document.createElement('div');
+            card.className = "result-card p-5 rounded-xl border border-slate-800 shadow-lg";
+            
+            if (data.error) {
+                card.innerHTML = `<span class="text-red-500 font-bold text-xs uppercase italic">Erreur: ${ip} - Inaccessible</span>`;
+            } else {
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-3">
+                        <span class="text-sky-400 impact-font text-xl tracking-wider">${ip}</span>
+                        <span class="text-[8px] font-black bg-sky-950/50 text-sky-500 px-2 py-1 rounded-md border border-sky-800/50 uppercase">${data.source}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-[10px]">
+                        <div>
+                            <span class="text-slate-500 uppercase block font-black text-[8px] mb-1">Entité ISP / Opérateur</span>
+                            <span class="text-slate-100 font-bold text-xs">${data.org || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 uppercase block font-black text-[8px] mb-1">Système Autonome</span>
+                            <span class="text-slate-100 font-bold">${data.asn || 'N/A'}</span>
+                        </div>
+                        <div class="col-span-2 bg-slate-950/40 p-3 mt-1 rounded-lg border border-slate-800/50">
+                            <span class="text-sky-600 uppercase block font-black text-[8px] mb-1">Localisation Géographique</span>
+                            <span class="text-slate-300 font-medium">${data.city || 'Inconnue'}, ${data.region || ''} — ${data.country_name || 'N/A'}</span>
+                        </div>
+                    </div>
+                `;
+            }
+            list.prepend(card);
+        }
+
+        async function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const now = new Date().toLocaleString('fr-FR');
+
+            // Correction du dégradé : au lieu de dessiner ligne par ligne (cause du bruit/traits)
+            // On utilise un bloc uni de la couleur cible #2258ce pour un rendu propre
+            const headerColor = [34, 88, 206]; // #2258ce
+            
+            doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+            doc.rect(0, 0, 210, 45, 'F'); // Bloc d'en-tête massif et propre
+            
+            // Ajout d'une ligne de séparation subtile en bas de l'en-tête pour le style
+            doc.setFillColor(26, 58, 138); // Un peu plus foncé
+            doc.rect(0, 44, 210, 1, 'F');
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(22);
+            doc.text("RAPPORT D'INVESTIGATION IP", 105, 20, { align: "center" });
+            
+            doc.setTextColor(200, 220, 255);
+            doc.setFontSize(9);
+            doc.text(`DATE DU RAPPORT : ${now}`, 105, 30, { align: "center" });
+            doc.text(`DOCUMENT CONFIDENTIEL`, 105, 35, { align: "center" });
+
+            // Table de données
+            const rows = resultsData.map(d => [
+                d.ip, 
+                d.org || 'N/A', 
+                d.asn || 'N/A', 
+                `${d.city || 'N/A'}, ${d.country_name || 'N/A'}`
+            ]);
+
+            doc.autoTable({
+                startY: 55,
+                head: [['ADRESSE_IP', 'OPERATEUR / ISP', 'ASN', 'GÉO-LOCALISATION']],
+                body: rows,
+                theme: 'striped',
+                styles: { 
+                    font: "helvetica", 
+                    fontSize: 10, 
+                    cellPadding: 4,
+                    textColor: [30, 41, 59],
+                    lineColor: [226, 232, 240]
+                },
+                headStyles: {
+                    fillColor: [34, 88, 206],
+                    textColor: [255, 255, 255],
+                    fontSize: 10,
+                    fontStyle: 'bold'
+                },
+                alternateRowStyles: {
+                    fillColor: [241, 245, 249]
+                }
+            });
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for(let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                doc.text(`Page ${i} sur ${pageCount} — Rapport - Listing des adresses IP identifiées`, 105, 285, { align: "center" });
+            }
+
+            doc.save(`rapport_forensic_ip_${Date.now()}.pdf`);
+        }
+
+        function clearResults() {
+            document.getElementById('resultsList').innerHTML = '';
+            document.getElementById('resultsWrapper').classList.add('hidden');
+            resultsData = [];
+        }
+
+        function showError(msg) {
+            const errorDiv = document.getElementById('error');
+            document.getElementById('errorMessage').textContent = msg;
+            errorDiv.classList.remove('hidden');
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        }
+
+        document.getElementById('ipInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') lookupSingleIP();
+        });
+    </script>
+</body>
+</html>
